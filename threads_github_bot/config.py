@@ -179,6 +179,7 @@ class ScheduleSettings:
     jitter_seed: str
     enable_adaptive: bool
     strategy: str
+    active_slots: Tuple[str, ...]  # ("morning", "evening") or ("evening",)
 
 
 @dataclass(frozen=True)
@@ -259,7 +260,7 @@ class Settings:
 
         content = ContentSettings(
             language=get("CONTENT_LANGUAGE", "en"),
-            min_text_bytes=_parse_int(get("CONTENT_MIN_TEXT_BYTES"), 120),
+            min_text_bytes=_parse_int(get("CONTENT_MIN_TEXT_BYTES"), 80),
             max_text_bytes=_parse_int(get("CONTENT_MAX_TEXT_BYTES"), 500),
             thread_post_count_min=_parse_int(get("THREAD_POST_COUNT_MIN"), 4),
             thread_post_count_max=_parse_int(get("THREAD_POST_COUNT_MAX"), 6),
@@ -288,16 +289,18 @@ class Settings:
             standalone_topics=_parse_csv(
                 get("CONTENT_STANDALONE_TOPICS"),
                 (
-                    "AI agents",
-                    "developer tools",
-                    "open source workflows",
-                    "LLM tooling",
-                    "building in public",
-                    "developer productivity",
-                    "startup tooling",
-                    "code review",
-                    "CI/CD pipelines",
-                    "RAG architectures",
+                    "when an AI agent is overkill vs when it actually saves time",
+                    "the gap between demo-quality and production-quality in LLM apps",
+                    "why most developer tools fail at onboarding",
+                    "building a side project in public as a solo dev",
+                    "the trade-off between using a framework vs rolling your own",
+                    "what code review actually catches vs what people think it catches",
+                    "shipping fast vs shipping correctly in early-stage startups",
+                    "the real cost of adding another dependency to your stack",
+                    "open source maintainer burnout and what users get wrong",
+                    "RAG vs fine-tuning for small teams — which is actually easier",
+                    "why your CI pipeline is slow and what to try first",
+                    "the tools I actually use daily vs the ones I recommend",
                 ),
             ),
         )
@@ -368,6 +371,7 @@ class Settings:
             jitter_seed=get("SCHEDULE_JITTER_SEED", "threads-github-bot"),
             enable_adaptive=_parse_bool(get("SCHEDULE_ENABLE_ADAPTIVE"), False),
             strategy=get("SCHEDULE_STRATEGY", "windowed-jitter-v1"),
+            active_slots=_parse_csv(get("SCHEDULE_ACTIVE_SLOTS"), ("evening",)),
         )
 
         reserve = ReserveSettings(

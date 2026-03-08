@@ -195,11 +195,13 @@ class ThreadValidator:
         if post_list:
             thread_post_minimum = max(40, min(self.settings.content.min_text_bytes, 50))
             for index, post in enumerate(post_list, start=1):
+                # soft_cta posts are URL-only follow-ups; skip normal length rules
+                post_min = 10 if getattr(post, "role", "") == "soft_cta" else thread_post_minimum
                 validation = self.post_validator.validate(
                     candidate,
                     post.text,
                     require_repo_url=False,
-                    min_bytes=thread_post_minimum,
+                    min_bytes=post_min,
                 )
                 reasons.extend(
                     "{0}:{1}".format(index, reason)

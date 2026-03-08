@@ -34,13 +34,15 @@ def build_slot_plan(
 def plan_next_slots(settings: Settings, now: datetime, count: int = 4) -> List[ScheduleSlotPlan]:
     tz = ZoneInfo(settings.runtime.timezone)
     local_now = now.astimezone(tz)
+    active = settings.schedule.active_slots
     slots: List[ScheduleSlotPlan] = []
     cursor = local_now.date()
     while len(slots) < count:
         if cursor.weekday() in settings.schedule.allowed_weekdays:
             day_slots = [
-                build_slot_plan(settings, cursor, "morning"),
-                build_slot_plan(settings, cursor, "evening"),
+                build_slot_plan(settings, cursor, name)
+                for name in ("morning", "evening")
+                if name in active
             ]
             for slot in day_slots:
                 if slot.planned_at_utc >= now:
@@ -61,10 +63,12 @@ def iter_today_slots(settings: Settings, now: datetime) -> Iterable[ScheduleSlot
     local_now = now.astimezone(tz)
     if local_now.date().weekday() not in settings.schedule.allowed_weekdays:
         return []
-    return (
-        build_slot_plan(settings, local_now.date(), "morning"),
-        build_slot_plan(settings, local_now.date(), "evening"),
-    )
+    active = settings.schedule.active_slots
+    slots = []
+    for name in ("morning", "evening"):
+        if name in active:
+            slots.append(build_slot_plan(settings, local_now.date(), name))
+    return slots
 
 
 def _deterministic_jitter(settings: Settings, local_date: str, slot_name: str) -> int:

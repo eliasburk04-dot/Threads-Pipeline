@@ -26,6 +26,7 @@ class ContentPillar:
     description: str
     needs_repo: bool
     weight: float  # higher = selected more often
+    temperature: float = 0.6  # per-pillar LLM temperature
 
 
 PILLAR_CATALOG: Dict[str, ContentPillar] = {
@@ -35,6 +36,7 @@ PILLAR_CATALOG: Dict[str, ContentPillar] = {
         description="Discover and present an interesting GitHub repo.",
         needs_repo=True,
         weight=0.40,
+        temperature=0.6,
     ),
     "hot-take": ContentPillar(
         slug="hot-take",
@@ -42,6 +44,7 @@ PILLAR_CATALOG: Dict[str, ContentPillar] = {
         description="A short, opinionated take on developer workflows, tools, or building.",
         needs_repo=False,
         weight=0.20,
+        temperature=0.85,
     ),
     "tool-comparison": ContentPillar(
         slug="tool-comparison",
@@ -49,6 +52,7 @@ PILLAR_CATALOG: Dict[str, ContentPillar] = {
         description="Compare two approaches, tools, or repos in the same space.",
         needs_repo=False,
         weight=0.15,
+        temperature=0.7,
     ),
     "question": ContentPillar(
         slug="question",
@@ -56,6 +60,7 @@ PILLAR_CATALOG: Dict[str, ContentPillar] = {
         description="An engagement-first post that asks the audience a concrete question.",
         needs_repo=False,
         weight=0.15,
+        temperature=0.85,
     ),
     "workflow-breakdown": ContentPillar(
         slug="workflow-breakdown",
@@ -63,6 +68,7 @@ PILLAR_CATALOG: Dict[str, ContentPillar] = {
         description="Break down a real workflow, experiment, or build-in-public observation.",
         needs_repo=False,
         weight=0.10,
+        temperature=0.7,
     ),
 }
 

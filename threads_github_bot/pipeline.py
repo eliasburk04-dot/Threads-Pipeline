@@ -26,24 +26,10 @@ from threads_github_bot.validation import ThreadValidator
 
 LOGGER = logging.getLogger(__name__)
 VALIDATION_REPAIR_ATTEMPTS = 2
-AI_TOPIC_REPLY_PHRASES = {
-    "ai": "If you are exploring practical AI workflows",
-    "agents": "If you are testing agent workflows",
-    "llm": "If you are working through an LLM-heavy workflow",
-    "rag": "If retrieval is part of your stack",
-    "developer-tools": "If this is close to your developer workflow",
-    "dev-infra": "If this touches your infra workflow",
-    "productivity": "If you care about sharper day-to-day workflows",
-    "saas": "If you are building SaaS tooling",
-    "open-source": "If you like focused open source tools",
-}
 FOLLOW_UP_REPLY_TEMPLATES = (
-    "the repo is here: {url}. The first thing I would test is whether it fits "
-    "the workflow my team already uses.",
-    "the repo is here: {url}. The useful question for me is whether a focused tool "
-    "like this beats a broader platform in practice.",
-    "the repo is here: {url}. I would mostly evaluate how quickly it goes from "
-    "interesting idea to a real workflow fit.",
+    "{url}",
+    "repo: {url}",
+    "here's the repo: {url}",
 )
 
 
@@ -563,10 +549,5 @@ def compose_publishable_thread(settings: Settings, generated_thread: GeneratedTh
 
 
 def _build_soft_follow_up_reply(candidate: RepositoryCandidate) -> str:
-    topic = candidate.primary_topic() or ""
-    lead = AI_TOPIC_REPLY_PHRASES.get(topic, "If this is close to your workflow")
     template = FOLLOW_UP_REPLY_TEMPLATES[candidate.repo_id % len(FOLLOW_UP_REPLY_TEMPLATES)]
-    return "{0}, {1}".format(
-        lead,
-        template.format(url=candidate.html_url),
-    )
+    return template.format(url=candidate.html_url)
