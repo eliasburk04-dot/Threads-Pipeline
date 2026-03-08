@@ -1,0 +1,2 @@
+"""Threads GitHub bot package."""
+

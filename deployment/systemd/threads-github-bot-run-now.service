@@ -1,0 +1,31 @@
+[Unit]
+Description=Threads GitHub Content Engine Immediate Run
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=threadsbot
+Group=threadsbot
+WorkingDirectory=/opt/threads-github-bot/app
+Environment=PYTHONUNBUFFERED=1
+Environment=APP_BASE_DIR=/var/lib/threads-github-bot
+Environment=APP_DATA_DIR=/var/lib/threads-github-bot
+Environment=APP_LOG_DIR=/var/log/threads-github-bot
+Environment=APP_DB_PATH=/var/lib/threads-github-bot/threads_github_bot.sqlite3
+Environment=APP_STATUS_PATH=/var/lib/threads-github-bot/status.json
+Environment=APP_TIMEZONE=Europe/Berlin
+EnvironmentFile=/etc/threads-github-bot/threads-github-bot.env
+ExecStart=/opt/threads-github-bot/venv/bin/python -m threads_github_bot scheduled-run
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/threads-github-bot /var/log/threads-github-bot
