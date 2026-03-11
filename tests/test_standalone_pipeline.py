@@ -346,3 +346,119 @@ def test_config_defaults_include_all_pillars(tmp_path) -> None:
     assert "tool-comparison" in settings.content.pillar_slugs
     assert "workflow-breakdown" in settings.content.pillar_slugs
     assert len(settings.content.standalone_topics) >= 5
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for March 9-10 2026 outage
+# ---------------------------------------------------------------------------
+
+def test_parse_standalone_posts_handles_non_integer_position() -> None:
+    """Regression: OpenAI sometimes returns 'founder' / 'neutral' as position value.
+    _parse_standalone_posts must not raise ValueError in that case.
+    """
+    from threads_github_bot.standalone_generation import _parse_standalone_posts
+
+    payload = {
+        "posts": [
+            {"position": "founder", "role": "hook", "text": "First post text here."},
+            {"position": "neutral", "role": "follow_up", "text": "Second post text here."},
+            {"position": None, "role": "cta", "text": "Third post text here."},
+            {"position": 4, "role": "cta", "text": "Fourth post text here."},
+        ]
+    }
+    posts = _parse_standalone_posts(payload)
+
+    assert len(posts) == 4
+    # Fallback positions are assigned sequentially when value is unparseable
+    assert posts[0].position == 1
+    assert posts[1].position == 2
+    assert posts[2].position == 3
+    assert posts[3].position == 4  # integer passes through as-is
+
+
+def test_pipeline_falls_back_to_repo_when_standalone_generate_raises(tmp_path) -> None:
+    """Regression: when standalone generator raises an exception the pipeline must
+    fall back to the repo-based path instead of returning standalone_generation_failed.
+    """
+    settings = Settings.from_env({"APP_BASE_DIR": str(tmp_path)})
+    store = SQLiteStateStore(settings.runtime.db_path)
+    store.initialize()
+
+    class BrokenStandaloneGenerator:
+        def generate(self, pillar, mode, topic_hint=None):
+            raise ValueError("invalid literal for int() with base 10: 'founder'")
+
+    candidate = _candidate("acme/fallback-repo")
+    generator = FakeGenerator()
+    pipeline = ThreadsGitHubPipeline(
+        settings=settings,
+        store=store,
+        discovery_client=FakeDiscoveryClient([candidate]),
+        generator=generator,
+        publisher=FakePublisher(),
+        validator=AlwaysValidValidator(),
+        standalone_generator=BrokenStandaloneGenerator(),
+    )
+
+    result = pipeline.run(mode="dry_run", pillar_override="question")
+
+    # Must NOT return standalone_generation_failed — must fall through to repo-based
+    assert result.status != "standalone_generation_failed"
+    assert result.status == "dry_run_ready"
+    assert result.selected_repo == "acme/fallback-repo"
+
+
+def test_pipeline_falls_back_to_repo_when_standalone_publish_fails(tmp_path) -> None:
+    """Regression: when standalone publish fails (e.g. API content block) the pipeline
+    must fall back to the repo-based path instead of returning publish_failed.
+    """
+    from threads_github_bot.models import PublishThreadResult, ThreadPublishPostResult
+
+    settings = Settings.from_env({"APP_BASE_DIR": str(tmp_path)})
+    store = SQLiteStateStore(settings.runtime.db_path)
+    store.initialize()
+
+    standalone_gen = FakeStandaloneGenerator(settings)
+    candidate = _candidate("acme/repo-after-block")
+    generator = FakeGenerator()
+
+    # First publish call (standalone) fails with API blocked.
+    # Second call (repo-based) succeeds.
+    publish_calls: list = []
+
+    class SwitchingPublisher:
+        def publish_thread(self, posts):
+            publish_calls.append(len(posts))
+            if len(publish_calls) == 1:
+                return PublishThreadResult(
+                    success=False,
+                    posts=[ThreadPublishPostResult(
+                        success=False,
+                        error='{"error":{"message":"API access blocked.","type":"OAuthException","code":200}}',
+                        status_code=400,
+                    )],
+                    error="API access blocked",
+                )
+            return PublishThreadResult(
+                success=True,
+                posts=[ThreadPublishPostResult(success=True, container_id="c1", media_id="m1", response={})
+                       for _ in posts],
+            )
+
+    pipeline = ThreadsGitHubPipeline(
+        settings=settings,
+        store=store,
+        discovery_client=FakeDiscoveryClient([candidate]),
+        generator=generator,
+        publisher=SwitchingPublisher(),
+        validator=AlwaysValidValidator(),
+        standalone_generator=standalone_gen,
+    )
+
+    # Must use post_now — dry_run bypasses the publisher entirely
+    result = pipeline.run(mode="post_now", pillar_override="question")
+
+    # After standalone publish block, must succeed via repo-based fallback
+    assert result.status == "published"
+    assert result.selected_repo == "acme/repo-after-block"
+    assert len(publish_calls) == 2  # tried standalone, then repo-based

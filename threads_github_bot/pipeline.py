@@ -101,13 +101,12 @@ class ThreadsGitHubPipeline:
                 "pipeline_standalone_generation_failed",
                 extra={"pillar": pillar.slug, "mode": mode},
             )
-            result = PipelineRunResult(
-                status="standalone_generation_failed",
-                reasons=["Standalone generation failed for {0}".format(pillar.slug)],
-                scheduled_slot_key=scheduled_slot.slot_key if scheduled_slot else None,
+            LOGGER.warning(
+                "pipeline_standalone_fallback_to_repo",
+                extra={"pillar": pillar.slug, "mode": mode},
             )
-            self._write_status(result)
-            return result
+            history = self.store.fetch_recent_thread_history()
+            return self._run_repo_based(mode, scheduled_slot, run_at, history)
 
         # Validate standalone content (lighter — no repo URL required)
         validation = self.validator.validate_standalone(generated_thread.posts)
@@ -163,15 +162,12 @@ class ThreadsGitHubPipeline:
             self._write_status(result)
             return result
 
-        result = PipelineRunResult(
-            status="publish_failed",
-            selected_repo="standalone/{0}".format(pillar.slug),
-            selected_series=pillar.label,
-            reasons=[publish_result.error or "Unknown publish failure"],
-            scheduled_slot_key=scheduled_slot.slot_key if scheduled_slot else None,
+        LOGGER.warning(
+            "pipeline_standalone_publish_failed_fallback_to_repo",
+            extra={"pillar": pillar.slug, "error": publish_result.error},
         )
-        self._write_status(result)
-        return result
+        history = self.store.fetch_recent_thread_history()
+        return self._run_repo_based(mode, scheduled_slot, run_at, history)
 
     def _run_repo_based(
         self,

@@ -115,20 +115,19 @@ class StandaloneThreadGenerator:
     def _generate_question(self, pillar: ContentPillar, mode: str, topic_hint: Optional[str]) -> GeneratedThread:
         topic = topic_hint or _pick_topic(self.settings)
         system_prompt = (
-            "You write engaging question posts for Threads that get developers to reply. "
-            "Be specific, not generic. Frame questions that have no obvious right answer "
-            "so people actually want to share their take. Return strict JSON only."
+            "You are a developer writing a short, opinionated post on Threads about a "
+            "real decision or trade-off you have encountered. Be specific and direct. "
+            "Return strict JSON only."
         )
         user_prompt = (
-            "Write a single question post (1 post only) about: {topic}.\n\n"
+            "Write a single post (1 post only) about: {topic}.\n\n"
             "Return a JSON object with key posts — an array with one object "
             "with keys position, role, text.\n\n"
             "Requirements:\n"
-            "- Start with 1-2 sentences of sharp context that creates tension "
-            "or names a real problem. Do NOT open with the question.\n"
-            "- End with one specific, debatable question.\n"
+            "- Describe a real trade-off or decision point briefly (1-2 sentences).\n"
+            "- Close with one specific, open-ended question that has no obvious right answer.\n"
             "- Aim for 150 to 280 characters total.\n"
-            "- The question should have at least two defensible answers.\n"
+            "- Sound like a practitioner thinking out loud, not a host running a poll.\n"
             "- Language: {language}\n"
             "- Hard max: {max_bytes} UTF-8 bytes.\n"
             "- No hashtags.\n"
@@ -216,10 +215,12 @@ def build_standalone_placeholder(pillar: ContentPillar, topic: str) -> Repositor
 
     This allows standalone threads to flow through the same persistence
     and publishing paths that expect a RepositoryCandidate.
+
+    The repo_id is derived solely from the pillar slug so it stays stable
+    across multiple runs — the full_name "standalone/{slug}" has a UNIQUE
+    constraint in the DB, so a changing id would cause IntegrityError.
     """
-    slug_hash = int(hashlib.sha256(
-        "{0}:{1}".format(pillar.slug, topic).encode()
-    ).hexdigest()[:8], 16)
+    slug_hash = int(hashlib.sha256(pillar.slug.encode()).hexdigest()[:8], 16)
     repo_id = _STANDALONE_REPO_ID_BASE + (slug_hash % 1_000_000)
     now = datetime.now(timezone.utc)
 
@@ -251,6 +252,14 @@ def _pick_topic(settings: Settings) -> str:
     return random.choice(topics)
 
 
+def _safe_position(value, fallback: int) -> int:
+    """Parse a position value tolerantly — int if possible, fallback otherwise."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _parse_standalone_posts(payload: Dict) -> List[ThreadPost]:
     posts: List[ThreadPost] = []
     for item in payload.get("posts") or []:
@@ -259,7 +268,7 @@ def _parse_standalone_posts(payload: Dict) -> List[ThreadPost]:
             continue
         posts.append(
             ThreadPost(
-                position=int(item.get("position") or len(posts) + 1),
+                position=_safe_position(item.get("position"), len(posts) + 1),
                 role=str(item.get("role") or "standalone").strip(),
                 text=text,
             )

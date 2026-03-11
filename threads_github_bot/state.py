@@ -278,10 +278,14 @@ class SQLiteStateStore:
     def upsert_repository(self, candidate: RepositoryCandidate) -> None:
         now = utcnow().isoformat()
         with self._connect() as connection:
+            # Check by repo_id OR full_name so that standalone placeholders whose
+            # repo_id changed between runs (e.g. topic-based → pillar-based hash)
+            # are correctly found and updated instead of causing a UNIQUE violation.
             existing = connection.execute(
-                "SELECT repo_id FROM repositories_seen WHERE repo_id = ?",
-                (candidate.repo_id,),
+                "SELECT repo_id FROM repositories_seen WHERE repo_id = ? OR full_name = ?",
+                (candidate.repo_id, candidate.full_name),
             ).fetchone()
+            db_repo_id = existing[0] if existing else candidate.repo_id
             if existing:
                 connection.execute(
                     """
@@ -312,7 +316,7 @@ class SQLiteStateStore:
                         candidate.score,
                         json.dumps(candidate.score_breakdown),
                         similarity_key(candidate),
-                        candidate.repo_id,
+                        db_repo_id,
                     ),
                 )
             else:
@@ -356,7 +360,7 @@ class SQLiteStateStore:
                 VALUES (?, ?, ?, ?)
                 """,
                 (
-                    candidate.repo_id,
+                    db_repo_id,
                     candidate.stargazers_count,
                     candidate.forks_count,
                     now,
